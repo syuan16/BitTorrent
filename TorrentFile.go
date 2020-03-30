@@ -5,9 +5,13 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/jackpal/bencode-go"
-	"io"
+	"os"
 )
 
+// Port to listen on
+const Port uint16 = 6881
+
+// this struct is for serialization
 type bencodeInfo struct {
 	Pieces      string `bencode:"pieces"`
 	PieceLength int    `bencode:"piece length"`
@@ -15,11 +19,13 @@ type bencodeInfo struct {
 	Name        string `bencode:"name"`
 }
 
+// this struct is for serialization
 type bencodeTorrent struct {
 	Announce string      `bencode:"announce"`
 	Info     bencodeInfo `bencode:"info"`
 }
 
+// TorrentFile encodes the metadata from a .torrent file
 type TorrentFile struct {
 	Announce    string
 	InfoHash    [20]byte
@@ -75,11 +81,24 @@ func (bto *bencodeTorrent) toTorrentFile() (TorrentFile, error) {
 	return t, nil
 }
 
-func Open(r io.Reader) (*bencodeTorrent, error) {
-	bto := bencodeTorrent{}
-	err := bencode.Unmarshal(r, &bto)
+func Open(path string) (TorrentFile, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return TorrentFile{}, err
 	}
-	return &bto, nil
+
+	defer file.Close()
+
+	bto := bencodeTorrent{}
+	err = bencode.Unmarshal(file, &bto)
+	if err != nil {
+		return TorrentFile{}, err
+	}
+
+	return bto.toTorrentFile()
+}
+
+func (t *TorrentFile) DownloadToFile(path string) error {
+	// TODO
+	return nil
 }
