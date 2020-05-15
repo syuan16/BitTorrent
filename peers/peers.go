@@ -1,9 +1,10 @@
-package BitTorrent
+package peers
 
 import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strconv"
 )
 
 type Peer struct {
@@ -27,4 +28,8 @@ func Unmarshal(peersBin []byte) ([]Peer, error) {
 	}
 
 	return peers, nil
+}
+
+func (p *Peer) String() string {
+	return net.JoinHostPort(p.IP.String(), strconv.Itoa(int(p.Port)))
 }
