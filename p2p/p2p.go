@@ -2,13 +2,21 @@ package p2p
 
 import (
 	"BitTorrent/client"
+	"BitTorrent/message"
 	"BitTorrent/peers"
 	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"log"
 	"runtime"
+	"time"
 )
+
+// the largest number of bytes a request can ask for
+const MaxBlockSize = 16384
+
+// the number of unfulfilled requests a client can have in its pipeline
+const MaxBacklog = 5
 
 type Torrent struct {
 	Peers       []peers.Peer
@@ -29,6 +37,47 @@ type pieceWork struct {
 type pieceResult struct {
 	index int
 	buf   []byte
+}
+
+type pieceProgress struct {
+	index      int
+	client     *client.Client
+	buf        []byte
+	downloaded int
+	requested  int
+	backlog    int
+}
+
+func (state *pieceProgress) readMessage() error {
+	msg, err := state.client.Read() // this call blocks
+	if err != nil {
+		return err
+	}
+
+	if msg == nil { // keep-alive
+		return nil
+	}
+
+	switch msg.ID {
+	case message.MsgUnchoke:
+		state.client.Choked = false
+	case message.MsgChoke:
+		state.client.Choked = true
+	case message.MsgHave:
+		index, err := message.ParseHave(msg)
+		if err != nil {
+			return err
+		}
+		state.client.Bitfield.SetPiece(index)
+	case message.MsgPiece:
+		n, err := message.ParsePieece(state.index, state.buf, msg)
+		if err != nil {
+			return err
+		}
+		state.downloaded += n
+		state.backlog--
+	}
+	return nil
 }
 
 func (t *Torrent) Download() ([]byte, error) {
@@ -88,13 +137,15 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 	c.SendInterested()
 
 	for pieceWork := range workQueue {
+
+		// if the peer does not have this piece
 		if !c.Bitfield.HasPiece(pieceWork.index) {
 			workQueue <- pieceWork // put piece back on the queue
 			continue
 		}
 
 		// Download the piece
-		buf, err := attempDownloadPiece(c, pieceWork)
+		buf, err := attemptDownloadPiece(c, pieceWork)
 		if err != nil {
 			log.Println("Exiting", err)
 			workQueue <- pieceWork
@@ -121,8 +172,50 @@ func checkIntegrity(work *pieceWork, buf []byte) error {
 	return nil
 }
 
-func attempDownloadPiece(c *client.Client, work *pieceWork) ([]byte, error) {
-	return nil, nil
+func attemptDownloadPiece(c *client.Client, work *pieceWork) ([]byte, error) {
+	state := pieceProgress{
+		index:      work.index,
+		client:     c,
+		buf:        make([]byte, work.length),
+		downloaded: 0,
+		requested:  0,
+		backlog:    0,
+	}
+
+	// Setting a deadline helps get unresponsive peers unstuck
+	// 30 seconds is more than enough time to download a 262 KB piece
+	c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
+	// disable the deadline
+	defer c.Conn.SetDeadline(time.Time{})
+
+	for state.downloaded < work.length {
+		// if unchoked, send requests until we have enough unfulfilled requests
+		if !state.client.Choked {
+			for state.backlog < MaxBacklog && state.requested < work.length {
+				blockSize := MaxBlockSize
+
+				// Last block might be shorter than the typical block
+				if work.length-state.requested < blockSize {
+					blockSize = work.length - state.requested
+				}
+
+				err := c.SendRequest(work.index, state.requested, blockSize)
+				if err != nil {
+					return nil, err
+				}
+
+				state.backlog++
+				state.requested += blockSize
+			}
+		}
+
+		err := state.readMessage()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return state.buf, nil
 }
 
 func (t *Torrent) calculateBoundsForPiece(index int) (begin, end int) {
