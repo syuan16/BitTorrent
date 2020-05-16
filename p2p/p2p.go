@@ -1,19 +1,23 @@
 package p2p
 
 import (
+	"BitTorrent/client"
 	"BitTorrent/peers"
+	"bytes"
+	"crypto/sha1"
+	"fmt"
 	"log"
 	"runtime"
 )
 
 type Torrent struct {
 	Peers       []peers.Peer
-	PeerID      [20]byte
-	InfoHash    [20]byte
-	PieceHashes [][20]byte
-	PieceLength int
-	Length      int
-	Name        string
+	PeerID      [20]byte   // the ID of the peer itself
+	InfoHash    [20]byte   // uniquely identifies files when talking to trackers and peers
+	PieceHashes [][20]byte // the hashes of the pieces of the file to be downloaded
+	PieceLength int        // the length of each piece hash
+	Length      int        // total length of the file
+	Name        string     // file name
 }
 
 type pieceWork struct {
@@ -66,13 +70,66 @@ func (t *Torrent) Download() ([]byte, error) {
 }
 
 func (t *Torrent) calculatePieceSize(index int) int {
-	return 0
+	begin, end := t.calculateBoundsForPiece(index)
+	return end - begin
 }
 
-func (t *Torrent) startDownloadWorker(peer peers.Peer, queue chan *pieceWork, results chan *pieceResult) {
+func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork, results chan *pieceResult) {
+	c, err := client.New(peer, t.PeerID, t.InfoHash)
+	if err != nil {
+		log.Printf("Could not handshake with %s. Disconnecting\n", peer.IP)
+		return
+	}
 
+	defer c.Conn.Close()
+	log.Printf("Completed handshake with %s\n", peer.IP)
+
+	c.SendUnchoke()
+	c.SendInterested()
+
+	for pieceWork := range workQueue {
+		if !c.Bitfield.HasPiece(pieceWork.index) {
+			workQueue <- pieceWork // put piece back on the queue
+			continue
+		}
+
+		// Download the piece
+		buf, err := attempDownloadPiece(c, pieceWork)
+		if err != nil {
+			log.Println("Exiting", err)
+			workQueue <- pieceWork
+			return
+		}
+
+		err = checkIntegrity(pieceWork, buf)
+		if err != nil {
+			log.Printf("index %d does not match hash of piece", pieceWork.index)
+			workQueue <- pieceWork
+			continue
+		}
+
+		c.SendHave(pieceWork.index)
+		results <- &pieceResult{index: pieceWork.index, buf: buf}
+	}
 }
 
-func (t *Torrent) calculateBoundsForPiece(index int) (int, int) {
-	return 0, 0
+func checkIntegrity(work *pieceWork, buf []byte) error {
+	hash := sha1.Sum(buf)
+	if !bytes.Equal(hash[:], work.hash[:]) {
+		return fmt.Errorf("index %d does not match hash of piece", work.index)
+	}
+	return nil
+}
+
+func attempDownloadPiece(c *client.Client, work *pieceWork) ([]byte, error) {
+	return nil, nil
+}
+
+func (t *Torrent) calculateBoundsForPiece(index int) (begin, end int) {
+	begin = index * t.PieceLength
+	end = begin + t.PieceLength
+	if end > t.Length {
+		end = t.Length
+	}
+	return begin, end
 }
