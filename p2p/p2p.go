@@ -133,8 +133,14 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 	defer c.Conn.Close()
 	log.Printf("Completed handshake with %s\n", peer.IP)
 
-	c.SendUnchoke()
-	c.SendInterested()
+	err = c.SendUnchoke()
+	if err != nil {
+		return
+	}
+	err = c.SendInterested()
+	if err != nil {
+		return
+	}
 
 	for pieceWork := range workQueue {
 
@@ -159,7 +165,11 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 			continue
 		}
 
-		c.SendHave(pieceWork.index)
+		err = c.SendHave(pieceWork.index)
+		if err != nil {
+			return
+		}
+
 		results <- &pieceResult{index: pieceWork.index, buf: buf}
 	}
 }
@@ -184,7 +194,10 @@ func attemptDownloadPiece(c *client.Client, work *pieceWork) ([]byte, error) {
 
 	// Setting a deadline helps get unresponsive peers unstuck
 	// 30 seconds is more than enough time to download a 262 KB piece
-	c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
+	err := c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
+	if err != nil {
+		return nil, err
+	}
 	// disable the deadline
 	defer c.Conn.SetDeadline(time.Time{})
 
