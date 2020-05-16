@@ -12,10 +12,15 @@ import (
 	"time"
 )
 
-// the largest number of bytes a request can ask for
+// the largest number of bytes in a block a request can ask for
+// a piece is broken into blocks
 const MaxBlockSize = 16384
 
-// the number of unfulfilled requests a client can have in its pipeline
+// MaxBacklog is the number of unfulfilled requests a client can have in its pipeline
+// pipeline can increase the throughput of the connection
+// requesting block one by one will tank the performance of the download
+// the value of 5 is a classical value, and increasing it can up to double the speed
+// **adaptive** queue size can also be used, however for simplicity it will not
 const MaxBacklog = 5
 
 type Torrent struct {
@@ -39,12 +44,13 @@ type pieceResult struct {
 	buf   []byte
 }
 
+// the struct that keeps track of each peer
 type pieceProgress struct {
 	index      int
 	client     *client.Client
 	buf        []byte
 	downloaded int
-	requested  int
+	requested  int // the number of bytes that have been downloaded
 	backlog    int
 }
 
