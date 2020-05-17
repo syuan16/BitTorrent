@@ -25,6 +25,9 @@ type Message struct {
 	Payload []byte
 }
 
+// serializes a message into a buffer of the form
+// <length prefix><message ID><payload>
+// interprets 'nil' as a keep-alive message
 func (m *Message) Serialize() []byte {
 	if m == nil {
 		return make([]byte, 4)
@@ -37,6 +40,8 @@ func (m *Message) Serialize() []byte {
 	return buf
 }
 
+// parses a message from a stream
+// returns 'nil' on keep-alive message
 func Read(r io.Reader) (*Message, error) {
 	lengthBuf := make([]byte, 4)
 	_, err := io.ReadFull(r, lengthBuf)
@@ -63,6 +68,41 @@ func Read(r io.Reader) (*Message, error) {
 	}
 
 	return &m, nil
+}
+
+func (m *Message) name() string {
+	if m == nil {
+		return "KeepAlive"
+	}
+	switch m.ID {
+	case MsgChoke:
+		return "Choke"
+	case MsgUnchoke:
+		return "Unchoke"
+	case MsgInterested:
+		return "Interested"
+	case MsgNotInterested:
+		return "NotInterested"
+	case MsgHave:
+		return "Have"
+	case MsgBitfield:
+		return "Bitfield"
+	case MsgRequest:
+		return "Request"
+	case MsgPiece:
+		return "Piece"
+	case MsgCancel:
+		return "Cancel"
+	default:
+		return fmt.Sprintf("Unknown#%d", m.ID)
+	}
+}
+
+func (m *Message) String() string {
+	if m == nil {
+		return m.name()
+	}
+	return fmt.Sprintf("%s [%d]", m.name(), len(m.Payload))
 }
 
 // create a REQUEST message
