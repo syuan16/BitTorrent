@@ -1,12 +1,12 @@
 package client
 
 import (
-	"BitTorrent/bitfield"
-	"BitTorrent/handshake"
-	"BitTorrent/message"
-	"BitTorrent/peers"
 	"bytes"
 	"fmt"
+	"github.com/syuan16/BitTorrent/bitfield"
+	"github.com/syuan16/BitTorrent/handshake"
+	"github.com/syuan16/BitTorrent/message"
+	"github.com/syuan16/BitTorrent/peers"
 	"net"
 	"time"
 )

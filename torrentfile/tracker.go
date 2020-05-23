@@ -3,8 +3,8 @@
 package torrentfile
 
 import (
-	"BitTorrent/peers"
 	"github.com/jackpal/bencode-go"
+	"github.com/syuan16/BitTorrent/peers"
 	"net/http"
 	"net/url"
 	"strconv"

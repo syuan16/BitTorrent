@@ -1,7 +1,7 @@
-package BitTorrent
+package Main
 
 import (
-	"BitTorrent/torrentfile"
+	"github.com/syuan16/BitTorrent/torrentfile"
 	"log"
 	"os"
 )

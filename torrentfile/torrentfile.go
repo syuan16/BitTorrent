@@ -1,12 +1,12 @@
 package torrentfile
 
 import (
-	"BitTorrent/p2p"
 	"bytes"
 	"crypto/rand"
 	"crypto/sha1"
 	"fmt"
 	"github.com/jackpal/bencode-go"
+	"github.com/syuan16/BitTorrent/p2p"
 	"os"
 )
 

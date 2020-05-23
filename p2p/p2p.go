@@ -1,12 +1,12 @@
 package p2p
 
 import (
-	"BitTorrent/client"
-	"BitTorrent/message"
-	"BitTorrent/peers"
 	"bytes"
 	"crypto/sha1"
 	"fmt"
+	"github.com/syuan16/BitTorrent/client"
+	"github.com/syuan16/BitTorrent/message"
+	"github.com/syuan16/BitTorrent/peers"
 	"log"
 	"runtime"
 	"time"
