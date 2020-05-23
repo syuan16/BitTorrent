@@ -6,7 +6,7 @@ import (
 )
 
 type Handshake struct {
-	Pstr     string
+	Pstr     string // the protocol identifier
 	InfoHash [20]byte
 	PeerID   [20]byte
 }
