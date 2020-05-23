@@ -88,8 +88,7 @@ func New(peer peers.Peer, peerID, infoHash [20]byte) (*Client, error) {
 }
 
 func (c *Client) Read() (*message.Message, error) {
-	msg, err := message.Read(c.Conn)
-	return msg, err
+	return message.Read(c.Conn)
 }
 
 func (c *Client) SendRequest(index, begin, length int) error {
@@ -118,6 +117,7 @@ func (c *Client) SendUnchoke() error {
 	return err
 }
 
+// Sends a HAVE message to the peer
 func (c *Client) SendHave(index int) error {
 	msg := message.FormatHave(index)
 	_, err := c.Conn.Write(msg.Serialize())
