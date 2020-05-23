@@ -1,7 +1,9 @@
-package BitTorrent
+package torrentfile
 
 import (
+	"BitTorrent/p2p"
 	"bytes"
+	"crypto/rand"
 	"crypto/sha1"
 	"fmt"
 	"github.com/jackpal/bencode-go"
@@ -98,7 +100,44 @@ func Open(path string) (TorrentFile, error) {
 	return bto.toTorrentFile()
 }
 
+// downloads a torrent and writes it to a file
 func (t *TorrentFile) DownloadToFile(path string) error {
-	// TODO
+	var peerID [20]byte
+	_, err := rand.Read(peerID[:])
+	if err != nil {
+		return err
+	}
+
+	peers, err := t.requestPeers(peerID, Port)
+	if err != nil {
+		return err
+	}
+
+	torrent := p2p.Torrent{
+		Peers:       peers,
+		PeerID:      peerID,
+		InfoHash:    t.InfoHash,
+		PieceHashes: t.PieceHashes,
+		PieceLength: t.PieceLength,
+		Length:      t.Length,
+		Name:        t.Name,
+	}
+
+	buf, err := torrent.Download()
+	if err != nil {
+		return err
+	}
+
+	outFile, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	defer outFile.Close()
+	_, err = outFile.Write(buf)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
